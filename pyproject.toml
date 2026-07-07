@@ -5,10 +5,13 @@ description = ""
 authors = [
     {name = "Cristian Barba",email = "gabrielcristian582@gmail.com"}
 ]
-requires-python = ">=3.9"
+requires-python = ">=3.10"
 dependencies = [
     "fastapi (>=0.139.0,<0.140.0)",
-    "uvicorn (>=0.50.2,<0.51.0)"
+    "uvicorn (>=0.50.2,<0.51.0)",
+    "python-dotenv (>=1.2.2,<2.0.0)",
+    "motor (>=3.7.1,<4.0.0)",
+    "pydantic-settings (>=2.14.2,<3.0.0)"
 ]
 
 
