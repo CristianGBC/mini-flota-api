@@ -1,14 +1,10 @@
 from fastapi import FastAPI
-from motor.motor_asyncio import AsyncIOMotorClient
-
-from app.config import settings
+from app.api.v1.endpoints.vehicles import router as vehicles_router
 
 app = FastAPI()
 
-client = AsyncIOMotorClient(settings.mongodb_url)
-
+app.include_router(vehicles_router)
 
 @app.get("/health")
 async def health_check():
-    await client.admin.command("ping")
-    return {"status": "okey"}
+    return {"status": "ok"}
