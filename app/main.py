@@ -6,15 +6,17 @@ from contextlib import asynccontextmanager
 
 from app.database import get_database
 from app.services.user_service import UserService
-
+from app.services.vehicle_service import VehicleService
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     database = get_database()
 
-    service = UserService(database)
-
-    await service.create_seed_user()
+    user_service = UserService(database)
+    await user_service.create_seed_user()
+    
+    vehicle_service = VehicleService(database)
+    await vehicle_service.create_indexes()
 
     yield
 
