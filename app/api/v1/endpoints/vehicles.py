@@ -1,22 +1,25 @@
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
-from app.schemas.vehicle import VehicleCreate
+from app.schemas.vehicle import VehicleCreate, VehicleResponse
 from app.services.vehicle_service import VehicleService
 
 router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
 
-@router.post("/")
+@router.post("/", response_model=VehicleResponse)
 async def create_vehicle(
     vehicle: VehicleCreate,
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
 
-    return await service.create_vehicle(vehicle)
+    try:
+        return await service.create_vehicle(vehicle)
+    except ValueError as error:
+        raise HTTPException(status_code=400, detail=str(error))
     
-@router.get("/")
+@router.get("/", response_model=list[VehicleResponse])
 async def get_vehicles(
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
@@ -24,16 +27,21 @@ async def get_vehicles(
 
     return await service.get_vehicles()
 
-@router.get("/{id}")
+@router.get("/{id}", response_model=VehicleResponse)
 async def get_vehicle(
     id: str,
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
 
-    return await service.get_vehicle(id)
+    vehicle = await service.get_vehicle(id)
 
-@router.put("/{id}")
+    if vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+
+    return vehicle
+
+@router.put("/{id}", response_model=VehicleResponse)
 async def update_vehicle(
     id: str,
     vehicle: VehicleCreate,
@@ -41,7 +49,12 @@ async def update_vehicle(
 ):
     service = VehicleService(database)
 
-    return await service.update_vehicle(id, vehicle)
+    updated_vehicle = await service.update_vehicle(id, vehicle)
+
+    if updated_vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+
+    return updated_vehicle
 
 @router.delete("/{id}")
 async def delete_vehicle(
@@ -50,4 +63,9 @@ async def delete_vehicle(
 ):
     service = VehicleService(database)
 
-    return await service.delete_vehicle(id)
+    deleted_vehicle = await service.delete_vehicle(id)
+
+    if deleted_vehicle is None:
+        raise HTTPException(status_code=404, detail="Vehículo no encontrado")
+
+    return deleted_vehicle
