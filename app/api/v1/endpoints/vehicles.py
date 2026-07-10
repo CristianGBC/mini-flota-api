@@ -5,11 +5,14 @@ from app.database import get_database
 from app.schemas.vehicle import VehicleCreate, VehicleResponse
 from app.services.vehicle_service import VehicleService
 
+from app.core.security import get_current_user
+
 router = APIRouter(prefix="/vehicles", tags=["Vehicles"])
 
 @router.post("/", response_model=VehicleResponse)
 async def create_vehicle(
     vehicle: VehicleCreate,
+    current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
@@ -21,6 +24,7 @@ async def create_vehicle(
     
 @router.get("/", response_model=list[VehicleResponse])
 async def get_vehicles(
+    current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
@@ -30,6 +34,7 @@ async def get_vehicles(
 @router.get("/{id}", response_model=VehicleResponse)
 async def get_vehicle(
     id: str,
+    current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
@@ -45,6 +50,7 @@ async def get_vehicle(
 async def update_vehicle(
     id: str,
     vehicle: VehicleCreate,
+    current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
@@ -59,6 +65,7 @@ async def update_vehicle(
 @router.delete("/{id}")
 async def delete_vehicle(
     id: str,
+    current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
