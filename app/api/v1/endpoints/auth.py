@@ -7,13 +7,14 @@ from app.core.security import (
     verify_password,
 )
 from app.database import get_database
+from app.schemas.authenticator import TokenResponse
 
 router = APIRouter(
     prefix="/auth",
     tags=["Authentication"],
 )
 
-@router.post("/login")
+@router.post("/login", response_model=TokenResponse)
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     database: AsyncIOMotorDatabase = Depends(get_database),
@@ -32,7 +33,7 @@ async def login(
 
     if not verify_password(
         form_data.password,
-        user["password"],
+        user["hashed_password"],
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
@@ -45,7 +46,6 @@ async def login(
         }
     )
 
-    return {
-        "access_token": access_token,
-        "token_type": "bearer",
-    }
+    return TokenResponse(
+        access_token=access_token
+    )

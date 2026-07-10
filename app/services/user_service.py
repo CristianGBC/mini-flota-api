@@ -17,7 +17,7 @@ class UserService:
 
         user = {
             "email": "admin@miniflota.com",
-            "password": hash_password("Admin123*")
+            "hashed_password": hash_password("Admin123*")
         }
 
         await self.collection.insert_one(user)
