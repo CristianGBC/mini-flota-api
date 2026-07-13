@@ -352,18 +352,3 @@ La validación del token se realiza mediante la dependencia `get_current_user`, 
 * Implementar roles y permisos.
 * Agregar pruebas de integración para los endpoints.
 * Crear un sistema de migraciones o inicialización de índices más estructurado.
-
-## Flujo sugerido para la demostración
-
-1. Comprobar `GET /health`.
-2. Iniciar sesión.
-3. Listar los vehículos.
-4. Crear un vehículo.
-5. Crear dos conductores.
-6. Listar los conductores.
-7. Asignar un conductor a un vehículo.
-8. Comprobar que el nombre aparece en la respuesta.
-9. Intentar asignar el mismo conductor a otro vehículo.
-10. Cambiar el conductor del primer vehículo.
-11. Comprobar que el conductor anterior queda disponible.
-12. Ejecutar las pruebas.
