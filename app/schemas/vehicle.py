@@ -1,6 +1,7 @@
 from pydantic import BaseModel, Field, field_validator
 import re
 from datetime import datetime
+from app.schemas.driver import DriverResponse
 
 class VehicleCreate(BaseModel):
     plate: str = Field(min_length=8, max_length=8)
@@ -42,6 +43,9 @@ class VehicleCreate(BaseModel):
 
         return value
 
+class AssignDriverRequest(BaseModel):
+    driver_id: str
+
 class VehicleResponse(BaseModel):
     id: str
     plate: str
@@ -50,3 +54,4 @@ class VehicleResponse(BaseModel):
     year: int
     capacity_kg: float
     status: str
+    driver: DriverResponse | None = None
