@@ -18,6 +18,8 @@ class VehicleService:
     
     async def create_indexes(self):
         await self.collection.create_index("plate", unique=True)
+        
+        await self.collection.create_index("status")
 
     def __init__(self, database: AsyncIOMotorDatabase):
         self.collection = database["vehicles"]

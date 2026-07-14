@@ -3,11 +3,41 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 from bson import ObjectId
 
-from app.schemas.vehicle import VehicleCreate
+from app.schemas.vehicle import VehicleCreate, VehicleQueryParams
 from app.services.vehicle_service import VehicleService
 from pymongo.errors import DuplicateKeyError
 from pydantic import ValidationError
 
+class FakeCursor:
+    def __init__(self, documents):
+        self.documents = documents
+        self.sort_field = None
+        self.sort_direction = None
+        self.skip_value = None
+        self.limit_value = None
+
+    def sort(self, field, direction):
+        self.sort_field = field
+        self.sort_direction = direction
+
+        return self
+
+    def skip(self, value):
+        self.skip_value = value
+
+        return self
+
+    def limit(self, value):
+        self.limit_value = value
+
+        return self
+
+    def __aiter__(self):
+        async def generator():
+            for document in self.documents:
+                yield document.copy()
+
+        return generator()
 
 class TestVehicleService:
     
@@ -63,10 +93,10 @@ class TestVehicleService:
     #Listar los vehiculos
     
     @pytest.mark.asyncio
-    async def test_get_vehicles_returns_vehicle_list(self):
+    async def test_get_vehicles_returns_paginated_response(self):
         vehicle_id = ObjectId()
 
-        fake_vehicle = {
+        vehicle_document = {
             "_id": vehicle_id,
             "plate": "PDA-1234",
             "brand": "Toyota",
@@ -76,32 +106,60 @@ class TestVehicleService:
             "status": "active",
         }
 
-        class FakeCursor:
-            def __aiter__(self):
-                async def generator():
-                    yield fake_vehicle
+        fake_cursor = FakeCursor([vehicle_document])
 
-                return generator()
-
-        fake_collection = MagicMock()
-        fake_collection.find.return_value = FakeCursor()
+        fake_vehicle_collection = MagicMock()
+        fake_vehicle_collection.find.return_value = fake_cursor
+        fake_vehicle_collection.count_documents = AsyncMock(
+            return_value=1
+        )
 
         fake_driver_collection = MagicMock()
+
         fake_database = {
-            "vehicles": fake_collection,
-            "drivers": fake_driver_collection
+            "vehicles": fake_vehicle_collection,
+            "drivers": fake_driver_collection,
         }
 
         service = VehicleService(fake_database)
 
-        result = await service.get_vehicles()
+        params = VehicleQueryParams(
+            page=1,
+            page_size=20,
+            sort_by="plate",
+            order="asc",
+        )
 
-        assert len(result) == 1
-        assert result[0]["id"] == str(vehicle_id)
-        assert "_id" not in result[0]
-        assert result[0]["plate"] == "PDA-1234"
+        result = await service.get_vehicles(params)
 
-        fake_collection.find.assert_called_once()
+        assert result == {
+            "items": [
+                {
+                    "id": str(vehicle_id),
+                    "plate": "PDA-1234",
+                    "brand": "Toyota",
+                    "model": "Hilux",
+                    "year": 2024,
+                    "capacity_kg": 1000.0,
+                    "status": "active",
+                    "driver": None,
+                }
+            ],
+            "total": 1,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 1,
+        }
+
+        fake_vehicle_collection.find.assert_called_once_with({})
+        fake_vehicle_collection.count_documents.assert_awaited_once_with(
+            {}
+        )
+
+        assert fake_cursor.sort_field == "plate"
+        assert fake_cursor.sort_direction == 1
+        assert fake_cursor.skip_value == 0
+        assert fake_cursor.limit_value == 20
     
     #Editar datos de vehiculo
     
@@ -476,3 +534,156 @@ class TestVehicleService:
                 "invalid-id",
                 str(ObjectId()),
             )
+    
+    #filtros, búsqueda y orden
+    
+    @pytest.mark.asyncio
+    async def test_get_vehicles_applies_filters_search_sort_and_pagination(
+        self,
+    ):
+        fake_cursor = FakeCursor([])
+
+        fake_vehicle_collection = MagicMock()
+        fake_vehicle_collection.find.return_value = fake_cursor
+        fake_vehicle_collection.count_documents = AsyncMock(
+            return_value=12
+        )
+
+        fake_database = {
+            "vehicles": fake_vehicle_collection,
+            "drivers": MagicMock(),
+        }
+
+        service = VehicleService(fake_database)
+
+        params = VehicleQueryParams(
+            page=2,
+            page_size=5,
+            status="active",
+            search="toyota",
+            sort_by="year",
+            order="desc",
+        )
+
+        result = await service.get_vehicles(params)
+
+        expected_filters = {
+            "status": "active",
+            "$or": [
+                {
+                    "plate": {
+                        "$regex": "toyota",
+                        "$options": "i",
+                    }
+                },
+                {
+                    "brand": {
+                        "$regex": "toyota",
+                        "$options": "i",
+                    }
+                },
+                {
+                    "model": {
+                        "$regex": "toyota",
+                        "$options": "i",
+                    }
+                },
+            ],
+        }
+
+        fake_vehicle_collection.find.assert_called_once_with(
+            expected_filters
+        )
+
+        fake_vehicle_collection.count_documents.assert_awaited_once_with(
+            expected_filters
+        )
+
+        assert fake_cursor.sort_field == "year"
+        assert fake_cursor.sort_direction == -1
+        assert fake_cursor.skip_value == 5
+        assert fake_cursor.limit_value == 5
+
+        assert result == {
+            "items": [],
+            "total": 12,
+            "page": 2,
+            "page_size": 5,
+            "total_pages": 3,
+        }
+    
+    #Resultados vacios
+    
+    @pytest.mark.asyncio
+    async def test_get_vehicles_returns_zero_pages_when_no_results(self):
+        fake_cursor = FakeCursor([])
+
+        fake_vehicle_collection = MagicMock()
+        fake_vehicle_collection.find.return_value = fake_cursor
+        fake_vehicle_collection.count_documents = AsyncMock(
+            return_value=0
+        )
+
+        fake_database = {
+            "vehicles": fake_vehicle_collection,
+            "drivers": MagicMock(),
+        }
+
+        service = VehicleService(fake_database)
+
+        params = VehicleQueryParams()
+
+        result = await service.get_vehicles(params)
+
+        assert result == {
+            "items": [],
+            "total": 0,
+            "page": 1,
+            "page_size": 20,
+            "total_pages": 0,
+        }
+    
+    def test_vehicle_query_params_rejects_page_zero(self):
+        with pytest.raises(ValidationError):
+            VehicleQueryParams(
+                page=0
+            )
+    
+    def test_vehicle_query_params_rejects_page_zero(self):
+        with pytest.raises(ValidationError):
+            VehicleQueryParams(
+                page=0
+            )
+    
+    def test_vehicle_query_params_rejects_page_size_above_one_hundred(
+        self,
+    ):
+        with pytest.raises(ValidationError):
+            VehicleQueryParams(
+                page_size=101
+            )
+    
+    @pytest.mark.asyncio
+    async def test_create_indexes_creates_plate_and_status_indexes(self):
+        fake_vehicle_collection = MagicMock()
+        fake_vehicle_collection.create_index = AsyncMock()
+
+        fake_database = {
+            "vehicles": fake_vehicle_collection,
+            "drivers": MagicMock(),
+        }
+
+        service = VehicleService(fake_database)
+
+        await service.create_indexes()
+
+        assert fake_vehicle_collection.create_index.await_count == 2
+
+        fake_vehicle_collection.create_index.assert_any_await(
+            "plate",
+            unique=True,
+        )
+
+        fake_vehicle_collection.create_index.assert_any_await(
+            "status"
+        )
