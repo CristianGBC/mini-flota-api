@@ -2,7 +2,13 @@ from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
-from app.schemas.vehicle import VehicleCreate, VehicleResponse, AssignDriverRequest
+from app.schemas.vehicle import (
+    AssignDriverRequest,
+    PaginatedVehicleResponse,
+    VehicleCreate,
+    VehicleQueryParams,
+    VehicleResponse,
+)
 from app.services.vehicle_service import VehicleService
 
 from app.core.security import get_current_user
@@ -22,14 +28,15 @@ async def create_vehicle(
     except ValueError as error:
         raise HTTPException(status_code=400, detail=str(error))
     
-@router.get("/", response_model=list[VehicleResponse])
+@router.get("/", response_model=PaginatedVehicleResponse)
 async def get_vehicles(
+    params: VehicleQueryParams = Depends(),
     current_user: str = Depends(get_current_user),
     database: AsyncIOMotorDatabase = Depends(get_database),
 ):
     service = VehicleService(database)
 
-    return await service.get_vehicles()
+    return await service.get_vehicles(params)
 
 @router.get("/{id}", response_model=VehicleResponse)
 async def get_vehicle(
