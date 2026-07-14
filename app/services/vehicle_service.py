@@ -1,11 +1,12 @@
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
-from app.schemas.vehicle import VehicleCreate
+from app.schemas.vehicle import VehicleCreate, VehicleQueryParams
 
 from bson import ObjectId
 from bson.errors import InvalidId
 
 from pymongo.errors import DuplicateKeyError
+from math import ceil
 
 def _to_object_id(vehicle_id: str) -> ObjectId | None:
     try:
@@ -43,19 +44,62 @@ class VehicleService:
             created_vehicle,
         )
     
-    async def get_vehicles(self):
+    async def get_vehicles(self, params: VehicleQueryParams):
+        filters = {}
+
+        if params.status:
+            filters["status"] = params.status
+
+        if params.search:
+            filters["$or"] = [
+                {
+                    "plate": {
+                        "$regex": params.search,
+                        "$options": "i",
+                    }
+                },
+                {
+                    "brand": {
+                        "$regex": params.search,
+                        "$options": "i",
+                    }
+                },
+                {
+                    "model": {
+                        "$regex": params.search,
+                        "$options": "i",
+                    }
+                },
+            ]
+
+        sort_direction = 1 if params.order == "asc" else -1
+        skip = (params.page - 1) * params.page_size
+
+        total = await self.collection.count_documents(filters)
+
+        cursor = (
+            self.collection
+            .find(filters)
+            .sort(params.sort_by, sort_direction)
+            .skip(skip)
+            .limit(params.page_size)
+        )
+
         vehicles = []
 
-        cursor = self.collection.find()
-
         async for vehicle in cursor:
-            serialized_vehicle = await self._serialize_vehicle(
-                vehicle,
-            )
-
+            serialized_vehicle = await self._serialize_vehicle(vehicle)
             vehicles.append(serialized_vehicle)
 
-        return vehicles
+        total_pages = ceil(total / params.page_size) if total > 0 else 0
+
+        return {
+            "items": vehicles,
+            "total": total,
+            "page": params.page,
+            "page_size": params.page_size,
+            "total_pages": total_pages,
+        }
     
     async def get_vehicle(self, vehicle_id: str):
         object_id = _to_object_id(vehicle_id)
