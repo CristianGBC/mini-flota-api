@@ -2,6 +2,8 @@ from pydantic import BaseModel, Field, field_validator
 import re
 from datetime import datetime
 from app.schemas.driver import DriverResponse
+from typing import Literal
+from fastapi import Query
 
 class VehicleCreate(BaseModel):
     plate: str = Field(min_length=8, max_length=8)
@@ -55,3 +57,25 @@ class VehicleResponse(BaseModel):
     capacity_kg: float
     status: str
     driver: DriverResponse | None = None
+    
+class VehicleQueryParams(BaseModel):
+    page: int = Query(default=1, ge=1)
+    page_size: int = Query(default=20, ge=1, le=100)
+    status: Literal["active", "inactive"] | None = Query(default=None)
+    search: str | None = Query(default=None)
+    sort_by: Literal[
+        "plate",
+        "brand",
+        "model",
+        "year",
+        "capacity_kg",
+        "status",
+    ] = Query(default="plate")
+    order: Literal["asc", "desc"] = Query(default="asc")
+
+class PaginatedVehicleResponse(BaseModel):
+    items: list[VehicleResponse]
+    total: int
+    page: int
+    page_size: int
+    total_pages: int
