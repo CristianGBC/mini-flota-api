@@ -92,10 +92,10 @@ class VehicleService:
             {"_id": object_id}
         )
 
-        updated_vehicle["id"] = str(updated_vehicle["_id"])
-        del updated_vehicle["_id"]
+        if updated_vehicle is None:
+            return None
 
-        return updated_vehicle
+        return await self._serialize_vehicle(updated_vehicle)
     
     async def delete_vehicle(self, vehicle_id: str):
         object_id = _to_object_id(vehicle_id)
