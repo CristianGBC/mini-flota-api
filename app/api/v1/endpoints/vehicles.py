@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from motor.motor_asyncio import AsyncIOMotorDatabase
 
 from app.database import get_database
-from app.schemas.vehicle import VehicleCreate, VehicleResponse
+from app.schemas.vehicle import VehicleCreate, VehicleResponse, AssignDriverRequest
 from app.services.vehicle_service import VehicleService
 
 from app.core.security import get_current_user
@@ -76,3 +76,28 @@ async def delete_vehicle(
         raise HTTPException(status_code=404, detail="Vehículo no encontrado")
 
     return deleted_vehicle
+
+@router.put("/{vehicle_id}/driver", response_model=VehicleResponse)
+async def assign_driver(
+    vehicle_id: str,
+    assignment: AssignDriverRequest,
+    current_user: str = Depends(get_current_user),
+    database: AsyncIOMotorDatabase = Depends(get_database),
+):
+    service = VehicleService(database)
+
+    try:
+        return await service.assign_driver(
+            vehicle_id,
+            assignment.driver_id,
+        )
+    except LookupError as error:
+        raise HTTPException(
+            status_code=404,
+            detail=str(error),
+        ) from error
+    except ValueError as error:
+        raise HTTPException(
+            status_code=400,
+            detail=str(error),
+        ) from error
